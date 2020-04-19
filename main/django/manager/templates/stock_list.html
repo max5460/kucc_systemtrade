@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang='ja'>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <title>Stock List</title>
+</head>
+<body>
+  <table>
+    <thead>
+      <tr>
+        <th>銘柄</th>
+        <th>評価額</th>
+      </tr>
+    </thead>
+    <tbody>
+        {% for stock in stocks %}
+        <tr>
+          <td>{{stock.brand}}</td>
+          <td>{{stock.valuation}}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
