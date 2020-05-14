@@ -28,11 +28,13 @@ def __login():
 
 def __update_execute(connection, df):
 
+    targetTableName = 'PREDICT_RESULT'
     transaction = None
+
     try:
         transaction = connection.begin()
-        connection.execute('TRUNCATE TABLE PREDICT_RESULT_TEST ')
-        df.to_sql('PREDICT_RESULT_TEST', connection, if_exists='append', index=None)
+        connection.execute('TRUNCATE TABLE ' + targetTableName)
+        df.to_sql(targetTableName, connection, if_exists='append', index=None)
         transaction.commit()
 
     except Exception as ex:
