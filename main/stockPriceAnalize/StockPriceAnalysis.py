@@ -19,7 +19,7 @@ PRICE_MOVEMENT_TYPE_UP = '上昇'
 PRICE_MOVEMENT_TYPE_DOWN = '下落'
 
 
-def __GetPredictDataFrameByBrand(sourceDataFrame, brandName, returnDataFrameColumnList):
+def __GetPredictDataFrameByBrand(sourceDataFrame, brand, returnDataFrameColumnList):
     dataFrameForTraining = GetDataFrameForAnalysis(sourceDataFrame)
 
     answer_label = []
@@ -46,17 +46,21 @@ def __GetPredictDataFrameByBrand(sourceDataFrame, brandName, returnDataFrameColu
 
     y_predict = randomForestClassifier.predict(X_test)
 
+    brandCode = ''
+    if ' ' in brand:
+        brandCode = brand.split()[0]
+    brandName = brand.replace(brandCode, '')
     return_predict = randomForestClassifier.predict(dataFrameForTraining[trainTargetColumnsList].iloc[-1].values.reshape(-1, len(trainTargetColumnsList)))
-    accuracy = accuracy_score(y_test, y_predict)
+    accuracy = accuracy_score(y_test, y_predict) * 100
     trainingDataCount = len(dataFrameForTraining)
 
-    resultList = np.array([brandName, return_predict[0], accuracy, trainingDataCount])
+    resultList = np.array([brandCode, brandName, return_predict[0], accuracy, trainingDataCount])
     return pd.DataFrame(resultList.reshape(-1, len(returnDataFrameColumnList)), columns=returnDataFrameColumnList)
 
 
 def GetPredictSummary():
 
-    predictSummaryDataFrame = pd.DataFrame(columns=['銘柄', '予測値動き', '正確度', 'テストデータ数'])
+    predictSummaryDataFrame = pd.DataFrame(columns=['銘柄コード', '銘柄名', '予測値動き', '正確度', 'テストデータ数'])
 
     for csvFile in glob.glob(CSVFILE_STORE_FOLDER_NAME + '//*' + CSVFILE_EXTENSION):
         dataFrameFromCSV = pd.read_csv(csvFile, encoding='UTF-8', engine='python')
