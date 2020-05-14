@@ -1,22 +1,28 @@
 import pyodbc
 from datetime import datetime
+from CommonConstant import DBConnectionINIFile
+from configparser import ConfigParser
+import sys
+
 
 def __login():
 
-    instance = "systemtrade.cztijmkhdo19.us-east-2.rds.amazonaws.com,1433"
-    user = "admin"
-    pasword = "v7JYRrWx"
-    db = "systemTrade"
-    connection = "DRIVER={SQL Server};SERVER=" + instance + ";uid=" + user + ";pwd=" + pasword + ";DATABASE=" + db
-    try:
-       con = pyodbc.connect(connection)
-       
-    except Exception as ex:
-       print(ex)
-       sys.exit(1)
-       
-    return con
+    configParser = ConfigParser()
+    configParser.read(DBConnectionINIFile)
 
+    instance = configParser['DBConnectionInformation']['serverName']
+    user = configParser['DBConnectionInformation']['user']
+    password = configParser['DBConnectionInformation']['password']
+    db = configParser['DBConnectionInformation']['DBName']
+    connection = "DRIVER={SQL Server};SERVER=" + instance + ";uid=" + user + ";pwd=" + password + ";DATABASE=" + db
+    try:
+        con = pyodbc.connect(connection)
+
+    except Exception as ex:
+        print(ex)
+        sys.exit(1)
+
+    return con
 
 def __update_execute(con,df):
 

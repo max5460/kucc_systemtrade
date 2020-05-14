@@ -1,5 +1,6 @@
 CSVFILE_STORE_FOLDER_NAME = '..//stockPriceCSV'
 CSVFILE_EXTENSION = '.csv'
+DBConnectionINIFile = 'DBConnection.ini'
 
 DROP_COLUMN_NAME_DATE = '日付'
 
