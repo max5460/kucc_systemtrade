@@ -1,8 +1,6 @@
-import pyodbc
-from datetime import datetime
 from CommonConstant import DBConnectionINIFile
 from configparser import ConfigParser
-import sys
+import sqlalchemy
 
 
 def __login():
@@ -11,66 +9,46 @@ def __login():
     configParser.read(DBConnectionINIFile)
 
     instance = configParser['DBConnectionInformation']['serverName']
+    port = configParser['DBConnectionInformation']['port']
     user = configParser['DBConnectionInformation']['user']
     password = configParser['DBConnectionInformation']['password']
     db = configParser['DBConnectionInformation']['DBName']
-    connection = "DRIVER={SQL Server};SERVER=" + instance + ";uid=" + user + ";pwd=" + password + ";DATABASE=" + db
+
+    connectionInformation = "mssql+pymssql://" + user + ":" + password + "@" + instance + ":" + port + "/" + db
+
     try:
-        con = pyodbc.connect(connection)
+        sqlEngine = sqlalchemy.create_engine(connectionInformation)
+        connection = sqlEngine.connect()
+        return connection
 
     except Exception as ex:
         print(ex)
-        sys.exit(1)
+        return None
 
-    return con
 
-def __update_execute(con,df):
+def __update_execute(connection, df):
 
-    cursor = con.cursor()
-    for index in range(len(df)):
-       try:
-          select = """SELECT 1 
-                      FROM   PREDICT_RESULT 
-                      WHERE  BRAND_CODE = (N'""" + df.at[index,'BRAND_CODE'] + """')"""
-          cursor.execute(select)
-          rows = cursor.fetchval()
-          #print(rows)
+    transaction = None
+    try:
+        transaction = connection.begin()
+        connection.execute('TRUNCATE TABLE PREDICT_RESULT_TEST ')
+        df.to_sql('PREDICT_RESULT_TEST', connection, if_exists='append', index=None)
+        transaction.commit()
 
-          if rows != 1:
-             values = "(N'" + df.at[index,'BRAND_CODE'] + "'),(N'" + df.at[index,'BRAND_DESC'] + "'),(N'" + df.at[index,'PREDICTION'] + "')," + \
-                      str(df.at[index,'ACCURACY']) + "," + str(df.at[index,'TRAINING_DATA_COUNT']) + ",'" + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + "'"
+    except Exception as ex:
+        if transaction is not None and transaction.is_active:
+            transaction.rollback()
+        print(ex)
 
-             sql = """INSERT
-                      INTO PREDICT_RESULT(
-                                          BRAND_CODE,
-                                          BRAND_DESC,
-                                          PREDICTION,
-                                          ACCURACY,
-                                          TRAINING_DATA_COUNT,
-                                          PREDICT_DATE
-                                         )
-                      VALUES (""" + values + """)"""
+    finally:
+        if connection is not None and not connection.closed:
+            connection.close()
 
-          else:
-             values = "PREDICTION = (N'" + df.at[index,'PREDICTION'] + "'),ACCURACY = " + str(df.at[index,'ACCURACY']) + \
-                      ",TRAINING_DATA_COUNT = " + str(df.at[index,'TRAINING_DATA_COUNT']) + ",PREDICT_DATE = '" + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + "'"
-
-             sql = """UPDATE PREDICT_RESULT 
-                      SET """ + values + """ 
-                      WHERE BRAND_CODE = '""" + str(df.at[index,'BRAND_CODE']) + """'"""
-                      
-          cursor.execute(sql)
-          con.commit()
-          
-       except Exception as ex:
-          print(ex)
-
-    cursor.close()
     return "FINISH"
 
-def update_db(dataFrame):
-    con = __login()
-    res = __update_execute(con,dataFrame)
-    con.close()
-    
+
+def update_db(df):
+    connection = __login()
+    res = __update_execute(connection, df)
+
     return res
