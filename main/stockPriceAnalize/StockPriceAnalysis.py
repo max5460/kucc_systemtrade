@@ -60,7 +60,7 @@ def __GetPredictDataFrameByBrand(sourceDataFrame, brand, returnDataFrameColumnLi
 
 def GetPredictSummary():
 
-    predictSummaryDataFrame = pd.DataFrame(columns=['銘柄コード', '銘柄名', '予測値動き', '正確度', 'テストデータ数'])
+    predictSummaryDataFrame = pd.DataFrame(columns=['BRAND_CODE', 'BRAND_DESC', 'PREDICTION', 'ACCURACY', 'TRAINING_DATA_COUNT'])
 
     for csvFile in glob.glob(CSVFILE_STORE_FOLDER_NAME + '//*' + CSVFILE_EXTENSION):
         dataFrameFromCSV = pd.read_csv(csvFile, encoding='UTF-8', engine='python')
@@ -69,7 +69,7 @@ def GetPredictSummary():
         resultDataFrameByBrand = __GetPredictDataFrameByBrand(dataFrameFromCSV, csvFileName, predictSummaryDataFrame.columns)
         predictSummaryDataFrame = predictSummaryDataFrame.append(resultDataFrameByBrand)
 
-    predictSummaryDataFrame = predictSummaryDataFrame.sort_values('正確度', ascending=False)
+    predictSummaryDataFrame = predictSummaryDataFrame.sort_values('ACCURACY', ascending=False)
     predictSummaryDataFrame.reset_index(drop=True, inplace=True)
 
     return predictSummaryDataFrame
