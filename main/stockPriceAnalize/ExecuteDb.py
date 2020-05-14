@@ -2,18 +2,20 @@ import pyodbc
 from datetime import datetime
 
 def __login():
+
+    instance = "systemtrade.cztijmkhdo19.us-east-2.rds.amazonaws.com,1433"
+    user = "admin"
+    pasword = "v7JYRrWx"
+    db = "systemTrade"
+    connection = "DRIVER={SQL Server};SERVER=" + instance + ";uid=" + user + ";pwd=" + pasword + ";DATABASE=" + db
     try:
-       instance = "systemtrade.cztijmkhdo19.us-east-2.rds.amazonaws.com,1433"
-       user = "admin"
-       pasword = "v7JYRrWx"
-       db = "systemTrade"
-       connection = "DRIVER={SQL Server};SERVER=" + instance + ";uid=" + user + ";pwd=" + pasword + ";DATABASE=" + db
+       con = pyodbc.connect(connection)
        
     except Exception as ex:
        print(ex)
        sys.exit(1)
        
-    return pyodbc.connect(connection)
+    return con
 
 
 def __update_execute(con,df):
@@ -42,7 +44,6 @@ def __update_execute(con,df):
                                           PREDICT_DATE
                                          )
                       VALUES (""" + values + """)"""
-             cursor.execute(sql)
 
           else:
              values = "PREDICTION = (N'" + df.at[index,'PREDICTION'] + "'),ACCURACY = " + str(df.at[index,'ACCURACY']) + \
@@ -51,7 +52,8 @@ def __update_execute(con,df):
              sql = """UPDATE PREDICT_RESULT 
                       SET """ + values + """ 
                       WHERE BRAND_CODE = '""" + str(df.at[index,'BRAND_CODE']) + """'"""
-             cursor.execute(sql)
+                      
+          cursor.execute(sql)
           con.commit()
           
        except Exception as ex:
