@@ -1,12 +1,14 @@
 import StockPriceCSV
 import StockPriceAnalysis
+import ExecuteDb
 
 if __name__ == "__main__":
-   #create_r = StockPriceCSV.ExportIndividualStockPrice()
+   #log = StockPriceCSV.ExportIndividualStockPrice()
    #print('CreateCSV LOG')
-   #print(create_r)
-   analysis_r = StockPriceAnalysis.GetPredictSummary()
+   #print(log)
+   df = StockPriceAnalysis.GetPredictSummary()
    print('AnalyzeCSV LOG')
-   print(analysis_r)
+   res = ExecuteDb.update_db(df)
+   print(res)
    print("END")
 
