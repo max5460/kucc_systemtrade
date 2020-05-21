@@ -1,6 +1,9 @@
 from CommonConstant import DBConnectionINIFile
 from configparser import ConfigParser
 import sqlalchemy
+from LogMessage import ExecuteDBMessage
+from logging import getLogger
+logger = getLogger()
 
 
 def __login():
@@ -19,17 +22,17 @@ def __login():
     try:
         sqlEngine = sqlalchemy.create_engine(connectionInformation)
         connection = sqlEngine.connect()
-        return connection
+        return connection, None
 
     except Exception as ex:
-        print(ex)
-        return None
+        return None, str(ex)
 
 
 def __update_execute(connection, df):
 
     targetTableName = 'PREDICT_RESULT'
     transaction = None
+    returnError = None
 
     try:
         transaction = connection.begin()
@@ -40,17 +43,23 @@ def __update_execute(connection, df):
     except Exception as ex:
         if transaction is not None and transaction.is_active:
             transaction.rollback()
-        print(ex)
+        returnError = str(ex)
 
     finally:
         if connection is not None and not connection.closed:
             connection.close()
-
-    return "FINISH"
+        return returnError
 
 
 def update_db(df):
-    connection = __login()
-    res = __update_execute(connection, df)
+    connection, connectionError = __login()
+    if connectionError is not None:
+        logger.info(ExecuteDBMessage.connectDBError + connectionError)
+        return connectionError
 
-    return res
+    dbUpdateError = __update_execute(connection, df)
+    if dbUpdateError is not None:
+        logger.info(ExecuteDBMessage.dbUpdateError + dbUpdateError)
+        return dbUpdateError
+
+    return None
