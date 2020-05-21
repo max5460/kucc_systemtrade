@@ -15,7 +15,9 @@ from CreateDataFrameForAnalysis import GetDataFrameForAnalysis
 import glob
 import os
 from datetime import datetime
-
+from LogMessage import StockPriceAnalysisMessage
+from logging import getLogger
+logger = getLogger()
 
 PRICE_MOVEMENT_TYPE_UP = '上昇'
 PRICE_MOVEMENT_TYPE_DOWN = '下落'
@@ -23,6 +25,9 @@ PRICE_MOVEMENT_TYPE_DOWN = '下落'
 
 def __GetPredictDataFrameByBrand(sourceDataFrame, brand, returnDataFrameColumnList, current_time):
     dataFrameForTraining = GetDataFrameForAnalysis(sourceDataFrame)
+
+    if dataFrameForTraining is None:
+        return None
 
     answer_label = []
     for idx in range(len(dataFrameForTraining) - 1):
@@ -73,7 +78,11 @@ def GetPredictSummary():
         dataFrameFromCSV = pd.read_csv(csvFile, encoding='UTF-8', engine='python')
 
         csvFileName = os.path.splitext(os.path.basename(csvFile))[0]
+
+        logger.debug(StockPriceAnalysisMessage.startAnalizeInformation % csvFileName)
         resultDataFrameByBrand = __GetPredictDataFrameByBrand(dataFrameFromCSV, csvFileName, predictSummaryDataFrame.columns, current_time)
+        logger.debug(StockPriceAnalysisMessage.endAnalizeInformation % csvFileName)
+
         predictSummaryDataFrame = predictSummaryDataFrame.append(resultDataFrameByBrand)
 
     predictSummaryDataFrame = predictSummaryDataFrame.sort_values('ACCURACY', ascending=False)

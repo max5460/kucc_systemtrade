@@ -6,6 +6,9 @@ import time
 from CommonConstant import CSVFILE_STORE_FOLDER_NAME, DROP_COLUMN_NAME_DATE, CSVFILE_EXTENSION
 import os
 from glob import glob
+from LogMessage import StockPriceCSVMessage
+from logging import getLogger
+logger = getLogger()
 
 SOURCE_URL = 'https://kabuoji3.com/stock/'
 CSV_NAME_UNUSABLE_WORDS = r'[\\/:*?"<>|]+'
@@ -105,6 +108,7 @@ def ExportIndividualStockPrice():
                 brandOnWeb.append(csvFileName)
 
     except Exception as ex:
+        logger.info(StockPriceCSVMessage.scrapingError + str(ex))
         return str(ex)
 
     __DeleteDisappearedBrandCSV(existBrandDDict, brandOnWeb)
