@@ -76,9 +76,17 @@ WSGI_APPLICATION = 'system_trade.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    }
+        'ENGINE': 'sql_server.pyodbc',
+        'NAME': 'systemTrade',
+        'USER': 'admin',
+        'PASSWORD': 'v7JYRrWx',
+        'HOST': 'systemtrade.cztijmkhdo19.us-east-2.rds.amazonaws.com,1433',
+        'PORT': '',
+        
+        'OPTIONS': {
+            'driver': 'ODBC Driver 17 for SQL Server',
+        },
+    },
 }
 
 
