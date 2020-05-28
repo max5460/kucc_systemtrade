@@ -13,15 +13,21 @@
   <table>
     <thead>
       <tr>
+        <th>銘柄ｺｰﾄﾞ</th>
         <th>銘柄</th>
-        <th>評価額</th>
+        <th>評価</th>
+        <th>正答率</th>
+        <th>教師ﾃﾞｰﾀ数</th>
       </tr>
     </thead>
     <tbody>
         {% for stock in stocks %}
         <tr>
-          <td>{{stock.brand}}</td>
-          <td>{{stock.valuation}}</td>
+          <td>{{stock.brand_code}}</td>
+          <td>{{stock.brand_desc}}</td>
+          <td>{{stock.prediction}}</td>
+          <td>{{stock.accuracy}}</td>
+          <td>{{stock.training_data_count}}</td>
         </tr>
         {% endfor %}
     </tbody>
