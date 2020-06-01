@@ -76,19 +76,19 @@ WSGI_APPLICATION = 'system_trade.wsgi.application'
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
 config = configparser.ConfigParser()
-config.read('./system_trade/DBConnection.ini','UTF-8')
+config.read('../DBConnection.ini','UTF-8')
 
 DATABASES = {
     'default': {
-        'ENGINE': config['DBConnectionInformation']['engine'],
-        'NAME': config['DBConnectionInformation']['name'],
+        'ENGINE': 'sql_server.pyodbc',
+        'NAME': config['DBConnectionInformation']['DBName'],
         'USER': config['DBConnectionInformation']['user'],
         'PASSWORD': config['DBConnectionInformation']['password'],
-        'HOST': config['DBConnectionInformation']['host'],
+        'HOST': config['DBConnectionInformation']['serverName'],
         'PORT': config['DBConnectionInformation']['port'],
         
         'OPTIONS': {
-            'driver': config['DBConnectionInformation']['driver'],
+            'driver': 'ODBC Driver 17 for SQL Server',
         },
     },
 }
