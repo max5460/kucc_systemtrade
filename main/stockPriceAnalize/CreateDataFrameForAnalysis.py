@@ -17,6 +17,9 @@ from CommonConstant import (
 import pandas as pd
 from TechnicalIndex import GetExponentialMovingAverage, GetMACD, GetDMIandADX
 from decimal import Decimal, InvalidOperation
+from LogMessage import CreateDataFrameAnalysisMessage
+from logging import getLogger
+logger = getLogger()
 
 
 def __DecimalizeDataFrame(sourceDataFrame):
@@ -95,6 +98,9 @@ def __GetDMIandADXDataFrame(sourceDataFrame):
 
     DMIandADXDataFrameList = [plusDIdataFrame, minusDIdataFrame, ADXdataFrame]
     alignedDataFrameList = __GetAlignedDataFrameLength(DMIandADXDataFrameList)
+    if len(alignedDataFrameList) == 0:
+        return None
+
     DMIandADXDataFrame = pd.concat(alignedDataFrameList, axis=1)
 
     previousDayDMIandADXDataFrame = __GetPreviousDayTechnicalIndex(DMIandADXDataFrame)
@@ -116,6 +122,7 @@ def __GetDMIandADXDataFrame(sourceDataFrame):
 def GetDataFrameForAnalysis(sourceDataFrame):
 
     if sourceDataFrame is None or len(sourceDataFrame) == 0:
+        logger.info(CreateDataFrameAnalysisMessage.sourceDataFrameError)
         return None
 
     technicalIndexDataFrame = sourceDataFrame.copy()
@@ -126,6 +133,7 @@ def GetDataFrameForAnalysis(sourceDataFrame):
 
     technicalIndexDataFrame = __DecimalizeDataFrame(technicalIndexDataFrame)
     if technicalIndexDataFrame is None:
+        logger.info(CreateDataFrameAnalysisMessage.decimalizeError)
         return None
 
     shortEMADataFrame = GetExponentialMovingAverage(calculateSourceDataFrame=technicalIndexDataFrame, calculate_parameter=5, calculateSourceColumnName=TECHNICAL_INDEX_COLUMN_NAME_CLOSE, returnDataFrameColumnName=TECHNICAL_INDEX_COLUMN_NAME_SHORT_EMA)
@@ -136,12 +144,14 @@ def GetDataFrameForAnalysis(sourceDataFrame):
     technicalIndexDataFrameList = [technicalIndexDataFrame, shortEMADataFrame, middleEMADataFrame, longEMADataFrame, MACD_DataFrame, signalDataFrame]
     alignedDataFrameList = __GetAlignedDataFrameLength(technicalIndexDataFrameList)
     if len(alignedDataFrameList) == 0:
+        logger.info(CreateDataFrameAnalysisMessage.technicalIndexDataFrameError)
         return None
 
     technicalIndexDataFrame = pd.concat(alignedDataFrameList, axis=1)
 
     previousDayTechnicalIndexDataFrame = __GetPreviousDayTechnicalIndex(technicalIndexDataFrame)
     if previousDayTechnicalIndexDataFrame is None:
+        logger.info(CreateDataFrameAnalysisMessage.previousDayDataFrameError)
         return None
 
     technicalIndexDataFrame.drop(0, inplace=True)
@@ -149,15 +159,21 @@ def GetDataFrameForAnalysis(sourceDataFrame):
     technicalIndexDataFrame = pd.concat([technicalIndexDataFrame, previousDayTechnicalIndexDataFrame.iloc[:-1]], axis=1)
     differenceDataFrameBetweenTodayAndPreviousDay = __GetDifferenceColumnBetweenTodayAndPreviousDay(technicalIndexDataFrame)
     if differenceDataFrameBetweenTodayAndPreviousDay is None:
+        logger.info(CreateDataFrameAnalysisMessage.differenceDataFrameError)
         return None
 
     technicalIndexDataFrame = pd.concat([technicalIndexDataFrame, differenceDataFrameBetweenTodayAndPreviousDay], axis=1)
 
     DMIandADXDataFrame = __GetDMIandADXDataFrame(technicalIndexDataFrame)
     if DMIandADXDataFrame is None:
+        logger.info(CreateDataFrameAnalysisMessage.DMIandADXDataFrameError)
         return None
 
     alignedDataFrameList = __GetAlignedDataFrameLength([technicalIndexDataFrame, DMIandADXDataFrame])
+    if len(alignedDataFrameList) == 0:
+        logger.info(CreateDataFrameAnalysisMessage.DMIandADXDataFrameError)
+        return None
+
     technicalIndexDataFrame = pd.concat(alignedDataFrameList, axis=1)
 
     nonPriceMovementIndex = technicalIndexDataFrame.index[technicalIndexDataFrame[TECHNICAL_INDEX_COLUMN_NAME_CLOSE + DIFFERENCE_COLUMN_SUFFIX] == 0]

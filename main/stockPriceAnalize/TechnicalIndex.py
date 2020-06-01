@@ -2,17 +2,23 @@ import pandas as pd
 import numpy as np
 from statistics import mean
 from math import fabs
+from LogMessage import TechnicalIndexMessage
+from logging import getLogger
+logger = getLogger()
 
 
 def GetExponentialMovingAverage(calculateSourceDataFrame, calculate_parameter, calculateSourceColumnName, returnDataFrameColumnName):
 
     if calculateSourceDataFrame is None or len(calculateSourceDataFrame) == 0:
+        logger.info(TechnicalIndexMessage.sourceDataFrameError_EMA)
         return None
 
     if len(calculateSourceDataFrame) < calculate_parameter:
+        logger.info(TechnicalIndexMessage.calculateParameterError_EMA)
         return None
 
     if calculateSourceColumnName not in calculateSourceDataFrame:
+        logger.info(TechnicalIndexMessage.calculateSourceColumnError_EMA % calculateSourceColumnName)
         return None
 
     calculateSourceData = calculateSourceDataFrame[calculateSourceColumnName].values
@@ -33,21 +39,26 @@ def GetExponentialMovingAverage(calculateSourceDataFrame, calculate_parameter, c
 def GetMACD(calculateSourceDataFrame, calculateSourceColumnName, baseLine_parameter, relativeLine_parameter, signal_parameter, MACDDataFrameColumnName, signalDataFrameColumnName):
 
     if baseLine_parameter > relativeLine_parameter:
+        logger.info(TechnicalIndexMessage.baseLineAndRelativeLineParameterError_MACD)
         return None, None
 
     if calculateSourceDataFrame is None or len(calculateSourceDataFrame) == 0:
+        logger.info(TechnicalIndexMessage.sourceDataFrameError_MACD)
         return None, None
 
     if calculateSourceColumnName not in calculateSourceDataFrame.columns:
+        logger.info(TechnicalIndexMessage.calculateSourceColumnError_MACD % calculateSourceColumnName)
         return None, None
 
     baseLineDataFrame = GetExponentialMovingAverage(calculateSourceDataFrame=calculateSourceDataFrame, calculate_parameter=baseLine_parameter, calculateSourceColumnName=calculateSourceColumnName, returnDataFrameColumnName='基準線')
     relativeLineDataFrame = GetExponentialMovingAverage(calculateSourceDataFrame=calculateSourceDataFrame, calculate_parameter=relativeLine_parameter, calculateSourceColumnName=calculateSourceColumnName, returnDataFrameColumnName='相対線')
 
     if baseLineDataFrame is None or len(baseLineDataFrame) == 0:
+        logger.info(TechnicalIndexMessage.baseLineDataFrameError_MACD)
         return None, None
 
     if relativeLineDataFrame is None or len(relativeLineDataFrame) == 0:
+        logger.info(TechnicalIndexMessage.relativeLineDataFrameError_MACD)
         return None, None
 
     baseLineList = baseLineDataFrame.values
@@ -58,6 +69,7 @@ def GetMACD(calculateSourceDataFrame, calculateSourceColumnName, baseLine_parame
         calculated_MACDlist.append(baseLineList[idx + relativeLine_parameter - baseLine_parameter] - relativeLineList[idx])
 
     if len(calculated_MACDlist) == 0:
+        logger.info(TechnicalIndexMessage.MACDcalculateError_MACD)
         return None, None
 
     MACD_DataFrame = pd.DataFrame(calculated_MACDlist, columns=[MACDDataFrameColumnName])
@@ -154,21 +166,27 @@ def GetDMIandADX(calculateSourceDataFrame, calculateSourceColumnName_TodayHigh, 
                  plusDIcolumnName, minusDIcolumnName, DI_Parameter, ADX_Parameter, ADXcolumnName):
 
     if calculateSourceDataFrame is None or len(calculateSourceDataFrame) == 0:
+        logger.info(TechnicalIndexMessage.sourceDataFrameError_DMIandADX)
         return None, None, None
 
     if calculateSourceColumnName_TodayHigh not in calculateSourceDataFrame.columns:
+        logger.info(TechnicalIndexMessage.calculateSourceColumnError_DMIandADX % calculateSourceColumnName_TodayHigh)
         return None, None, None
 
     if calculateSourceColumnName_TodayLow not in calculateSourceDataFrame.columns:
+        logger.info(TechnicalIndexMessage.calculateSourceColumnError_DMIandADX % calculateSourceColumnName_TodayLow)
         return None, None, None
 
     if calculateSourceColumnName_PreviousHigh not in calculateSourceDataFrame.columns:
+        logger.info(TechnicalIndexMessage.calculateSourceColumnError_DMIandADX % calculateSourceColumnName_PreviousHigh)
         return None, None, None
 
     if calculateSourceColumnName_PreviousLow not in calculateSourceDataFrame.columns:
+        logger.info(TechnicalIndexMessage.calculateSourceColumnError_DMIandADX % calculateSourceColumnName_PreviousLow)
         return None, None, None
 
     if len(calculateSourceDataFrame) < DI_Parameter:
+        logger.info(TechnicalIndexMessage.calculateParameterError_DMIandADX)
         return None, None, None
 
     todayHighList = calculateSourceDataFrame[calculateSourceColumnName_TodayHigh].values
@@ -179,19 +197,23 @@ def GetDMIandADX(calculateSourceDataFrame, calculateSourceColumnName_TodayHigh, 
 
     plusDM, minusDM = __GetDM(todayHighList, todayLowList, previousHighList, previousLowList)
     if plusDM is None or minusDM is None:
+        logger.info(TechnicalIndexMessage.calculateDMError_DMIandADX)
         return None, None, None
 
     trueRange = __GetTrueRange(todayHighList, todayLowList, previousHighList, previousLowList, previousCloseList)
     if trueRange is None:
+        logger.info(TechnicalIndexMessage.calculateTrueRangeError_DMIandADX)
         return None, None, None
 
     plusDI, minusDI = __GetDI(plusDM, minusDM, trueRange, DI_Parameter)
     if plusDI is None or minusDI is None:
+        logger.info(TechnicalIndexMessage.calculateDIError_DMIandADX)
         return None, None, None
 
     DXdataFrameColumnName = 'DX'
     DXdataFrame = __GetDX(plusDI, minusDI, DXdataFrameColumnName)
     if DXdataFrame is None:
+        logger.info(TechnicalIndexMessage.calculateDXError_DMIandADX)
         return None, None, None
 
     plusDIdataFrame = pd.DataFrame(np.array(plusDI), columns=[plusDIcolumnName])

@@ -1,6 +1,6 @@
 from django.db import models
 
-class Stock(models.Model):
+class PredictResult(models.Model):
     brand_code = models.CharField(db_column='BRAND_CODE', primary_key=True, max_length=10)  # Field name made lowercase.
     brand_desc = models.TextField(db_column='BRAND_DESC', blank=True, null=True)  # Field name made lowercase.
     prediction = models.CharField(db_column='PREDICTION', max_length=2, blank=True, null=True)  # Field name made lowercase.
