@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
+import configparser
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -74,17 +75,20 @@ WSGI_APPLICATION = 'system_trade.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
+config = configparser.ConfigParser()
+config.read('./system_trade/DBConnection.ini','UTF-8')
+
 DATABASES = {
     'default': {
-        'ENGINE': 'sql_server.pyodbc',
-        'NAME': 'systemTrade',
-        'USER': 'admin',
-        'PASSWORD': 'v7JYRrWx',
-        'HOST': 'systemtrade.cztijmkhdo19.us-east-2.rds.amazonaws.com,1433',
-        'PORT': '',
+        'ENGINE': config['DBConnectionInformation']['engine'],
+        'NAME': config['DBConnectionInformation']['name'],
+        'USER': config['DBConnectionInformation']['user'],
+        'PASSWORD': config['DBConnectionInformation']['password'],
+        'HOST': config['DBConnectionInformation']['host'],
+        'PORT': config['DBConnectionInformation']['port'],
         
         'OPTIONS': {
-            'driver': 'ODBC Driver 17 for SQL Server',
+            'driver': config['DBConnectionInformation']['driver'],
         },
     },
 }
