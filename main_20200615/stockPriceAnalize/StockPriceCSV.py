@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import re
 import pandas as pd
 import time
-from CommonConstant import CSVFILE_STORE_FOLDER_NAME, INDEX_COLUMN_NAME_DATE, CSVFILE_EXTENSION
+from CommonConstant import CSVFILE_STORE_FOLDER_NAME, DROP_COLUMN_NAME_DATE, CSVFILE_EXTENSION
 import os
 from glob import glob
 from LogMessage import StockPriceCSVMessage
@@ -102,7 +102,7 @@ def ExportIndividualStockPrice():
                     outIndividualStockPriceDataFrame = __GetAllDayStockPriceDataFrame(urlTag)
 
                 csvFilePath = CSVFILE_STORE_FOLDER_NAME + '\\' + __stripInvalidCharacterFromFileName(csvFileName) + CSVFILE_EXTENSION
-                outIndividualStockPriceDataFrame.sort_values(INDEX_COLUMN_NAME_DATE, inplace=True)
+                outIndividualStockPriceDataFrame.sort_values(DROP_COLUMN_NAME_DATE, inplace=True)
                 outIndividualStockPriceDataFrame.to_csv(csvFilePath, index=False)
 
                 brandOnWeb.append(csvFileName)

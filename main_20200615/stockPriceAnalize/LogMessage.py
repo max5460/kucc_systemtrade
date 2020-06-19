@@ -18,7 +18,8 @@ class ExecuteDBMessage:
 
 
 class StockPriceAnalysisMessage:
-    addTrainingDataInformation = '%sのデータを訓練対象に追加します。'
+    startAnalizeInformation = '%sの株価分析を開始します。'
+    endAnalizeInformation = '%sの株価分析が完了しました。'
 
 
 class StockPriceCSVMessage:

@@ -1,5 +1,6 @@
 from CommonConstant import (
-                            DROP_COLUMN_NAME_LIST,
+                            INDEX_COLUMN_NAME_DATE,
+                            TECHNICAL_INDEX_COLUMN_NAME_OPEN,
                             TECHNICAL_INDEX_COLUMN_NAME_CLOSE,
                             TECHNICAL_INDEX_COLUMN_NAME_LOW,
                             TECHNICAL_INDEX_COLUMN_NAME_HIGH,
@@ -12,9 +13,14 @@ from CommonConstant import (
                             TECHNICAL_INDEX_COLUMN_NAME_MINUS_DI,
                             TECHNICAL_INDEX_COLUMN_NAME_ADX,
                             PREVIOUS_COLUMN_PREFIX,
-                            DIFFERENCE_COLUMN_SUFFIX
+                            PREVIOUS_DAYS_CONSTANT,
+                            TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST,
+                            TOMORROW_PRICE_PREFIX,
+                            LSTM_INPUT_WINDOW_LENGTH
                            )
 import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler
 from TechnicalIndex import GetExponentialMovingAverage, GetMACD, GetDMIandADX
 from decimal import Decimal, InvalidOperation
 from LogMessage import CreateDataFrameAnalysisMessage
@@ -27,61 +33,43 @@ def __DecimalizeDataFrame(sourceDataFrame):
     if sourceDataFrame is None or len(sourceDataFrame) == 0:
         return None
 
-    sourceColumns = sourceDataFrame.columns
     sourceNdarray = sourceDataFrame.values
-    Y_length, X_length = sourceNdarray.shape
+    decimalizedNdarray = np.empty(sourceNdarray.shape, dtype=Decimal)
 
+    Y_length, X_length = sourceNdarray.shape
     try:
-        for X_idx in range(X_length):
-            for Y_idx in range(Y_length):
-                sourceNdarray[Y_idx, X_idx] = Decimal(str(sourceNdarray[Y_idx, X_idx]))
+        for y_idx in range(Y_length):
+            for x_idx in range(X_length):
+                decimalizedNdarray[y_idx, x_idx] = Decimal(str(sourceNdarray[y_idx, x_idx]))
     except InvalidOperation:
         return None
 
-    return pd.DataFrame(sourceNdarray, columns=sourceColumns)
+    return pd.DataFrame(decimalizedNdarray, columns=sourceDataFrame.columns, index=sourceDataFrame.index)
 
 
-def __GetDifferenceColumnBetweenTodayAndPreviousDay(sourceDataFrame):
+def __GetTechnicalIndexDataFrameList(sourceDataFrame):
+    def __GetPreviousDayTechnicalIndex(_sourceOHLCdataFrame):
 
-    returnDataFrame = pd.DataFrame(None)
+        previousDayTechnicalIndexDataFrame = _sourceOHLCdataFrame.copy().shift()
+        previousTrainingTechnicalIndexColumnList = [PREVIOUS_COLUMN_PREFIX + columnName for columnName in sourceDataFrame.columns]
+        previousDayTechnicalIndexDataFrame.columns = previousTrainingTechnicalIndexColumnList
 
-    todayColumns = [columnName for columnName in sourceDataFrame.columns if PREVIOUS_COLUMN_PREFIX not in columnName]
+        return previousDayTechnicalIndexDataFrame.dropna()
 
-    for columnName in todayColumns:
-        if PREVIOUS_COLUMN_PREFIX + columnName in sourceDataFrame.columns:
-            returnDataFrame[columnName + DIFFERENCE_COLUMN_SUFFIX] = sourceDataFrame[columnName] - sourceDataFrame[PREVIOUS_COLUMN_PREFIX + columnName]
+    calculateSourceOHLC = sourceDataFrame.copy()
 
-    return returnDataFrame
+    shortEMADataFrame = GetExponentialMovingAverage(calculateSourceDataFrame=calculateSourceOHLC, calculate_parameter=5, calculateSourceColumnName=TECHNICAL_INDEX_COLUMN_NAME_CLOSE, returnDataFrameColumnName=TECHNICAL_INDEX_COLUMN_NAME_SHORT_EMA)
+    middleEMADataFrame = GetExponentialMovingAverage(calculateSourceDataFrame=calculateSourceOHLC, calculate_parameter=20, calculateSourceColumnName=TECHNICAL_INDEX_COLUMN_NAME_CLOSE, returnDataFrameColumnName=TECHNICAL_INDEX_COLUMN_NAME_MIDDLE_EMA)
+    longEMADataFrame = GetExponentialMovingAverage(calculateSourceDataFrame=calculateSourceOHLC, calculate_parameter=60, calculateSourceColumnName=TECHNICAL_INDEX_COLUMN_NAME_CLOSE, returnDataFrameColumnName=TECHNICAL_INDEX_COLUMN_NAME_LONG_EMA)
+    MACD_DataFrame, signalDataFrame = GetMACD(calculateSourceDataFrame=calculateSourceOHLC, calculateSourceColumnName=TECHNICAL_INDEX_COLUMN_NAME_CLOSE, baseLine_parameter=12, relativeLine_parameter=26, signal_parameter=9, MACDDataFrameColumnName=TECHNICAL_INDEX_COLUMN_NAME_MACD, signalDataFrameColumnName=TECHNICAL_INDEX_COLUMN_NAME_SIGNAL)
 
+    previousDayOHLCdataFrame = __GetPreviousDayTechnicalIndex(calculateSourceOHLC)
+    if previousDayOHLCdataFrame is None:
+        logger.info(CreateDataFrameAnalysisMessage.previousDayDataFrameError)
+        return None
 
-def __GetAlignedDataFrameLength(sourceDataFrameList):
-
-    errorDataFrameList = [technicalIndexDataFrame for technicalIndexDataFrame in sourceDataFrameList if technicalIndexDataFrame is None or len(technicalIndexDataFrame) == 0]
-    if len(errorDataFrameList) != 0:
-        return []
-
-    minimumRowsCount = min([len(technicalIndexDataFrame) for technicalIndexDataFrame in sourceDataFrameList])
-
-    for technicalIndexDataFrame in sourceDataFrameList:
-        if len(technicalIndexDataFrame) > minimumRowsCount:
-            technicalIndexDataFrame.drop(labels=technicalIndexDataFrame.index[0:len(technicalIndexDataFrame) - minimumRowsCount], inplace=True)
-            technicalIndexDataFrame.reset_index(drop=True, inplace=True)
-
-    return sourceDataFrameList
-
-
-def __GetPreviousDayTechnicalIndex(sourceDataFrame):
-
-    previousDayTechnicalIndexDataFrame = sourceDataFrame.copy()
-    previousTrainingTechnicalIndexColumnList = [PREVIOUS_COLUMN_PREFIX + columnName for columnName in sourceDataFrame.columns]
-    previousDayTechnicalIndexDataFrame.columns = previousTrainingTechnicalIndexColumnList
-
-    return previousDayTechnicalIndexDataFrame
-
-
-def __GetDMIandADXDataFrame(sourceDataFrame):
-
-    plusDIdataFrame, minusDIdataFrame, ADXdataFrame = GetDMIandADX(calculateSourceDataFrame=sourceDataFrame,
+    todayAndPreviousOHLCdataFrame = pd.concat([calculateSourceOHLC, previousDayOHLCdataFrame], axis=1).dropna()
+    plusDIdataFrame, minusDIdataFrame, ADXdataFrame = GetDMIandADX(calculateSourceDataFrame=todayAndPreviousOHLCdataFrame,
                                                                    calculateSourceColumnName_TodayHigh=TECHNICAL_INDEX_COLUMN_NAME_HIGH,
                                                                    calculateSourceColumnName_TodayLow=TECHNICAL_INDEX_COLUMN_NAME_LOW,
                                                                    calculateSourceColumnName_PreviousHigh=PREVIOUS_COLUMN_PREFIX + TECHNICAL_INDEX_COLUMN_NAME_HIGH,
@@ -93,30 +81,59 @@ def __GetDMIandADXDataFrame(sourceDataFrame):
                                                                    ADX_Parameter=26,
                                                                    ADXcolumnName=TECHNICAL_INDEX_COLUMN_NAME_ADX)
 
-    if plusDIdataFrame is None or minusDIdataFrame is None or ADXdataFrame is None:
+    return [shortEMADataFrame, middleEMADataFrame, longEMADataFrame, MACD_DataFrame, signalDataFrame, plusDIdataFrame, minusDIdataFrame, ADXdataFrame]
+
+
+def __GetSeveralDaysTechnicalIndexDataFrame(sourceDataFrame, fundamentalColumnName):
+
+    if sourceDataFrame is None or len(sourceDataFrame) == 0:
+        logger.info(CreateDataFrameAnalysisMessage.sourceDataFrameError)
         return None
 
-    DMIandADXDataFrameList = [plusDIdataFrame, minusDIdataFrame, ADXdataFrame]
-    alignedDataFrameList = __GetAlignedDataFrameLength(DMIandADXDataFrameList)
-    if len(alignedDataFrameList) == 0:
+    if len(sourceDataFrame) < LSTM_INPUT_WINDOW_LENGTH:
         return None
 
-    DMIandADXDataFrame = pd.concat(alignedDataFrameList, axis=1)
-
-    previousDayDMIandADXDataFrame = __GetPreviousDayTechnicalIndex(DMIandADXDataFrame)
-    if previousDayDMIandADXDataFrame is None:
+    if fundamentalColumnName not in sourceDataFrame.columns:
         return None
 
-    DMIandADXDataFrame.drop(0, inplace=True)
-    DMIandADXDataFrame.reset_index(drop=True, inplace=True)
-    DMIandADXDataFrame = pd.concat([DMIandADXDataFrame, previousDayDMIandADXDataFrame.iloc[:-1]], axis=1)
-    differenceDataFrameBetweenTodayAndPreviousDay = __GetDifferenceColumnBetweenTodayAndPreviousDay(DMIandADXDataFrame)
-    if differenceDataFrameBetweenTodayAndPreviousDay is None:
-        return None
+    severalDaysDataFrame = sourceDataFrame[[fundamentalColumnName]].copy()
 
-    DMIandADXDataFrame = pd.concat([DMIandADXDataFrame, differenceDataFrameBetweenTodayAndPreviousDay], axis=1)
+    severalDaysDataFrame.sort_index(ascending=False, inplace=True)
 
-    return DMIandADXDataFrame
+    returnDataFrameColumn = [fundamentalColumnName]
+    for idx in range(1, LSTM_INPUT_WINDOW_LENGTH + 1):
+        previousCloseSeries = severalDaysDataFrame[fundamentalColumnName].shift(-1 * idx)
+        addedColumnName = str(idx) + PREVIOUS_DAYS_CONSTANT + fundamentalColumnName
+        severalDaysDataFrame[addedColumnName] = previousCloseSeries
+        returnDataFrameColumn.insert(0, addedColumnName)
+
+    severalDaysDataFrame.sort_index(ascending=True, inplace=True)
+
+    return severalDaysDataFrame[returnDataFrameColumn]
+
+
+def __GetScaledDataFrame(sourceDataFrame):
+    def __GetLogarithmicallyTransformedNdArray(transformedData):
+        missingValueDroppedNdarary = np.array(transformedData.astype('float64'))
+        logarithmicallyTransformedNdArray = np.log(missingValueDroppedNdarary + 1)
+
+        return np.nan_to_num(logarithmicallyTransformedNdArray).reshape(len(transformedData), 1)
+
+    copiedDataFrame = sourceDataFrame.copy()
+
+    copiedDataFrame.dropna(inplace=True)
+    returnDataFrameLength = len(copiedDataFrame)
+    returnDataFrameColumnsCount = len(copiedDataFrame.columns)
+
+    returnNdArray = np.empty([returnDataFrameLength, returnDataFrameColumnsCount])
+
+    for idx in range(returnDataFrameColumnsCount):
+        transformedNdArray = __GetLogarithmicallyTransformedNdArray(copiedDataFrame[copiedDataFrame.columns[idx]])
+        standardScaler = StandardScaler()
+        returnNdArray[0:returnDataFrameLength, idx:idx + 1] = standardScaler.fit_transform(transformedNdArray)
+
+    returnDataFrameIndex = copiedDataFrame.index
+    return pd.DataFrame(returnNdArray, columns=sourceDataFrame.columns, index=returnDataFrameIndex)
 
 
 def GetDataFrameForAnalysis(sourceDataFrame):
@@ -125,61 +142,40 @@ def GetDataFrameForAnalysis(sourceDataFrame):
         logger.info(CreateDataFrameAnalysisMessage.sourceDataFrameError)
         return None
 
-    technicalIndexDataFrame = sourceDataFrame.copy()
+    columnNameList_OHLC = [INDEX_COLUMN_NAME_DATE, TECHNICAL_INDEX_COLUMN_NAME_OPEN, TECHNICAL_INDEX_COLUMN_NAME_HIGH, TECHNICAL_INDEX_COLUMN_NAME_LOW, TECHNICAL_INDEX_COLUMN_NAME_CLOSE]
+    sourceOHLCdataFrame = sourceDataFrame[columnNameList_OHLC].copy()
+    sourceOHLCdataFrame.set_index(INDEX_COLUMN_NAME_DATE, inplace=True)
 
-    for dropColumnName in DROP_COLUMN_NAME_LIST:
-        if dropColumnName in technicalIndexDataFrame.columns:
-            technicalIndexDataFrame.drop(dropColumnName, axis=1, inplace=True)
+    decimalizedOHLCdataFrame = __DecimalizeDataFrame(sourceOHLCdataFrame)
 
-    technicalIndexDataFrame = __DecimalizeDataFrame(technicalIndexDataFrame)
-    if technicalIndexDataFrame is None:
+    if decimalizedOHLCdataFrame is None:
         logger.info(CreateDataFrameAnalysisMessage.decimalizeError)
         return None
 
-    shortEMADataFrame = GetExponentialMovingAverage(calculateSourceDataFrame=technicalIndexDataFrame, calculate_parameter=5, calculateSourceColumnName=TECHNICAL_INDEX_COLUMN_NAME_CLOSE, returnDataFrameColumnName=TECHNICAL_INDEX_COLUMN_NAME_SHORT_EMA)
-    middleEMADataFrame = GetExponentialMovingAverage(calculateSourceDataFrame=technicalIndexDataFrame, calculate_parameter=20, calculateSourceColumnName=TECHNICAL_INDEX_COLUMN_NAME_CLOSE, returnDataFrameColumnName=TECHNICAL_INDEX_COLUMN_NAME_MIDDLE_EMA)
-    longEMADataFrame = GetExponentialMovingAverage(calculateSourceDataFrame=technicalIndexDataFrame, calculate_parameter=60, calculateSourceColumnName=TECHNICAL_INDEX_COLUMN_NAME_CLOSE, returnDataFrameColumnName=TECHNICAL_INDEX_COLUMN_NAME_LONG_EMA)
-    MACD_DataFrame, signalDataFrame = GetMACD(calculateSourceDataFrame=technicalIndexDataFrame, calculateSourceColumnName=TECHNICAL_INDEX_COLUMN_NAME_CLOSE, baseLine_parameter=12, relativeLine_parameter=26, signal_parameter=9, MACDDataFrameColumnName=TECHNICAL_INDEX_COLUMN_NAME_MACD, signalDataFrameColumnName=TECHNICAL_INDEX_COLUMN_NAME_SIGNAL)
+    technicalIndexDataFrameList = __GetTechnicalIndexDataFrameList(decimalizedOHLCdataFrame)
 
-    technicalIndexDataFrameList = [technicalIndexDataFrame, shortEMADataFrame, middleEMADataFrame, longEMADataFrame, MACD_DataFrame, signalDataFrame]
-    alignedDataFrameList = __GetAlignedDataFrameLength(technicalIndexDataFrameList)
-    if len(alignedDataFrameList) == 0:
-        logger.info(CreateDataFrameAnalysisMessage.technicalIndexDataFrameError)
-        return None
+    for checkedTechnicalIndexDataFrame in technicalIndexDataFrameList:
+        if checkedTechnicalIndexDataFrame is None or len(checkedTechnicalIndexDataFrame) == 0:
+            logger.info(CreateDataFrameAnalysisMessage.technicalIndexDataFrameError)
+            return None
 
-    technicalIndexDataFrame = pd.concat(alignedDataFrameList, axis=1)
+    technicalIndexDataFrame = pd.concat(technicalIndexDataFrameList, axis=1)
+    scaledDataFrame = __GetScaledDataFrame(technicalIndexDataFrame[TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST].dropna())
 
-    previousDayTechnicalIndexDataFrame = __GetPreviousDayTechnicalIndex(technicalIndexDataFrame)
-    if previousDayTechnicalIndexDataFrame is None:
-        logger.info(CreateDataFrameAnalysisMessage.previousDayDataFrameError)
-        return None
+    severalDaysTechnicalIndexDataFrame = pd.DataFrame(None)
+    for severalDaysColumnTechnicalIndexColumnName in TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST:
+        severalDaysDataFrame = __GetSeveralDaysTechnicalIndexDataFrame(scaledDataFrame, severalDaysColumnTechnicalIndexColumnName)
+        severalDaysTechnicalIndexDataFrame = pd.concat([severalDaysTechnicalIndexDataFrame, severalDaysDataFrame], axis=1)
 
-    technicalIndexDataFrame.drop(0, inplace=True)
-    technicalIndexDataFrame.reset_index(drop=True, inplace=True)
-    technicalIndexDataFrame = pd.concat([technicalIndexDataFrame, previousDayTechnicalIndexDataFrame.iloc[:-1]], axis=1)
-    differenceDataFrameBetweenTodayAndPreviousDay = __GetDifferenceColumnBetweenTodayAndPreviousDay(technicalIndexDataFrame)
-    if differenceDataFrameBetweenTodayAndPreviousDay is None:
-        logger.info(CreateDataFrameAnalysisMessage.differenceDataFrameError)
-        return None
+    tomorrowClosePriceDataFrame = decimalizedOHLCdataFrame[[TECHNICAL_INDEX_COLUMN_NAME_CLOSE]].shift(-1).astype('float64')
 
-    technicalIndexDataFrame = pd.concat([technicalIndexDataFrame, differenceDataFrameBetweenTodayAndPreviousDay], axis=1)
+    # dropnaメソッドで消えないように便宜上0にしておく
+    tomorrowClosePriceDataFrame.iloc[-1] = 0
+    tomorrowClosePriceDataFrame.columns = [TOMORROW_PRICE_PREFIX + TECHNICAL_INDEX_COLUMN_NAME_CLOSE]
 
-    DMIandADXDataFrame = __GetDMIandADXDataFrame(technicalIndexDataFrame)
-    if DMIandADXDataFrame is None:
-        logger.info(CreateDataFrameAnalysisMessage.DMIandADXDataFrameError)
-        return None
+    returnDataFrame = pd.concat([severalDaysTechnicalIndexDataFrame, tomorrowClosePriceDataFrame], axis=1)
+    returnDataFrame.dropna(inplace=True)
 
-    alignedDataFrameList = __GetAlignedDataFrameLength([technicalIndexDataFrame, DMIandADXDataFrame])
-    if len(alignedDataFrameList) == 0:
-        logger.info(CreateDataFrameAnalysisMessage.DMIandADXDataFrameError)
-        return None
+    return returnDataFrame
 
-    technicalIndexDataFrame = pd.concat(alignedDataFrameList, axis=1)
-
-    nonPriceMovementIndex = technicalIndexDataFrame.index[technicalIndexDataFrame[TECHNICAL_INDEX_COLUMN_NAME_CLOSE + DIFFERENCE_COLUMN_SUFFIX] == 0]
-    if len(nonPriceMovementIndex) > 0:
-        technicalIndexDataFrame.drop(nonPriceMovementIndex, inplace=True)
-        technicalIndexDataFrame.reset_index(drop=True, inplace=True)
-
-    return technicalIndexDataFrame
 

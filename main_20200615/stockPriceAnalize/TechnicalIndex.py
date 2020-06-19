@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from statistics import mean
 from math import fabs
-from decimal import Decimal
 from LogMessage import TechnicalIndexMessage
 from logging import getLogger
 logger = getLogger()
@@ -23,20 +22,18 @@ def GetExponentialMovingAverage(calculateSourceDataFrame, calculate_parameter, c
         return None
 
     calculateSourceData = calculateSourceDataFrame[calculateSourceColumnName].values
-    EMA_Ndarray = np.empty((len(calculateSourceDataFrame)), dtype=Decimal)
 
     firstEMA = mean(calculateSourceData[0:calculate_parameter])
-    EMA_Ndarray[calculate_parameter - 1] = firstEMA
+    exponentialMovingAverage = [firstEMA]
 
     smoothingExponential = 2 / (calculate_parameter + 1)
-    smoothingExponential = Decimal(str(smoothingExponential))
 
     for idx in range(calculate_parameter, len(calculateSourceData)):
-        before_EMA = EMA_Ndarray[idx - 1]
+        before_EMA = exponentialMovingAverage[-1]
         current_Amount = before_EMA + smoothingExponential * (calculateSourceData[idx] - before_EMA)
-        EMA_Ndarray[idx] = current_Amount
+        exponentialMovingAverage.append(current_Amount)
 
-    return pd.DataFrame(EMA_Ndarray, columns=[returnDataFrameColumnName], index=calculateSourceDataFrame.index)
+    return pd.DataFrame(exponentialMovingAverage, columns=[returnDataFrameColumnName])
 
 
 def GetMACD(calculateSourceDataFrame, calculateSourceColumnName, baseLine_parameter, relativeLine_parameter, signal_parameter, MACDDataFrameColumnName, signalDataFrameColumnName):
@@ -64,16 +61,19 @@ def GetMACD(calculateSourceDataFrame, calculateSourceColumnName, baseLine_parame
         logger.info(TechnicalIndexMessage.relativeLineDataFrameError_MACD)
         return None, None
 
-    baseLineNdarray = baseLineDataFrame.values.reshape(len(baseLineDataFrame))
-    relativeLineNdarray = relativeLineDataFrame.values.reshape(len(relativeLineDataFrame))
+    baseLineList = baseLineDataFrame.values
+    relativeLineList = relativeLineDataFrame.values
 
-    MACD_NdArray = np.empty(len(baseLineDataFrame), dtype=Decimal)
+    calculated_MACDlist = []
+    for idx in range(len(relativeLineList)):
+        calculated_MACDlist.append(baseLineList[idx + relativeLine_parameter - baseLine_parameter] - relativeLineList[idx])
 
-    for idx in range(relativeLine_parameter - 1, len(relativeLineNdarray)):
-        MACD_NdArray[idx] = baseLineNdarray[idx] - relativeLineNdarray[idx]
+    if len(calculated_MACDlist) == 0:
+        logger.info(TechnicalIndexMessage.MACDcalculateError_MACD)
+        return None, None
 
-    MACD_DataFrame = pd.DataFrame(MACD_NdArray, columns=[MACDDataFrameColumnName], index=calculateSourceDataFrame.index)
-    signalDataFrame = GetExponentialMovingAverage(calculateSourceDataFrame=MACD_DataFrame.dropna(), calculate_parameter=signal_parameter, calculateSourceColumnName=MACDDataFrameColumnName, returnDataFrameColumnName=signalDataFrameColumnName)
+    MACD_DataFrame = pd.DataFrame(calculated_MACDlist, columns=[MACDDataFrameColumnName])
+    signalDataFrame = GetExponentialMovingAverage(calculateSourceDataFrame=MACD_DataFrame, calculate_parameter=signal_parameter, calculateSourceColumnName=MACDDataFrameColumnName, returnDataFrameColumnName=signalDataFrameColumnName)
 
     return MACD_DataFrame, signalDataFrame
 
@@ -127,7 +127,7 @@ def GetDMIandADX(calculateSourceDataFrame, calculateSourceColumnName_TodayHigh, 
             trueRangeCandidate_1 = fabs(todayHigh[idx] - todayLow[idx])
             trueRangeCandidate_2 = fabs(todayHigh[idx] - previousClose[idx])
             trueRangeCandidate_3 = fabs(previousClose[idx] - todayLow[idx])
-            trueRangeList.append(Decimal(str(max(trueRangeCandidate_1, trueRangeCandidate_2, trueRangeCandidate_3))))
+            trueRangeList.append(max(trueRangeCandidate_1, trueRangeCandidate_2, trueRangeCandidate_3))
 
         return np.array(trueRangeList)
 
@@ -142,29 +142,27 @@ def GetDMIandADX(calculateSourceDataFrame, calculateSourceColumnName_TodayHigh, 
         if calculateLength < _DI_Parameter:
             return None, None
 
-        plusDI_Ndarray = np.empty(len(_plusDM), dtype=Decimal)
-        minusDI_Ndarray = np.empty(len(_minusDM), dtype=Decimal)
+        plusDIlist = []
+        minusDIlist = []
         for idx in range(calculateLength - _DI_Parameter + 1):
-            plusDI_Ndarray[_DI_Parameter - 1 + idx] = sum(_plusDM[idx:_DI_Parameter + idx]) / sum(_trueRange[idx:_DI_Parameter + idx]) * 100
-            minusDI_Ndarray[_DI_Parameter - 1 + idx] = sum(_minusDM[idx:_DI_Parameter + idx]) / sum(_trueRange[idx:_DI_Parameter + idx]) * 100
+            plusDIlist.append(sum(_plusDM[idx:_DI_Parameter + idx]) / sum(_trueRange[idx:_DI_Parameter + idx]) * 100)
+            minusDIlist.append(sum(_minusDM[idx:_DI_Parameter + idx]) / sum(_trueRange[idx:_DI_Parameter + idx]) * 100)
 
-        return plusDI_Ndarray, minusDI_Ndarray
+        return np.array(plusDIlist), np.array(minusDIlist)
 
 
-    def __GetDX(_plusDI, _minusDI, _DXdataFrameColumnName, _DI_Parameter, returnDataFrameIndex):
+    def __GetDX(_plusDI, _minusDI, _DXdataFrameColumnName):
 
         if len(_plusDI) != len(_minusDI):
             return None
 
         calculateLength = len(_plusDI)
 
-        DX_Ndarray = np.empty(calculateLength, dtype=Decimal)
+        DXlist = []
+        for idx in range(calculateLength):
+            DXlist.append(fabs(_plusDI[idx] - _minusDI[idx]) / (_plusDI[idx] + _minusDI[idx]) * 100)
 
-        for idx in range(_DI_Parameter - 1, calculateLength):
-            DX_Ndarray[idx] = Decimal(str(fabs(_plusDI[idx] - _minusDI[idx]))) / (_plusDI[idx] + _minusDI[idx]) * 100
-
-        return pd.DataFrame(DX_Ndarray, columns=[_DXdataFrameColumnName], index=returnDataFrameIndex)
-
+        return pd.DataFrame(np.array(DXlist), columns=[_DXdataFrameColumnName])
 
     if calculateSourceDataFrame is None or len(calculateSourceDataFrame) == 0:
         logger.info(TechnicalIndexMessage.sourceDataFrameError_DMIandADX)
@@ -212,15 +210,14 @@ def GetDMIandADX(calculateSourceDataFrame, calculateSourceColumnName_TodayHigh, 
         return None, None, None
 
     DXdataFrameColumnName = 'DX'
-    calculateSourceDataFrameIndex = calculateSourceDataFrame.index
-    DXdataFrame = __GetDX(plusDI, minusDI, DXdataFrameColumnName, DI_Parameter, calculateSourceDataFrameIndex)
+    DXdataFrame = __GetDX(plusDI, minusDI, DXdataFrameColumnName)
     if DXdataFrame is None:
         logger.info(TechnicalIndexMessage.calculateDXError_DMIandADX)
         return None, None, None
 
-    plusDIdataFrame = pd.DataFrame(np.array(plusDI), columns=[plusDIcolumnName], index=calculateSourceDataFrameIndex)
-    minusDIdataFrame = pd.DataFrame(np.array(minusDI), columns=[minusDIcolumnName], index=calculateSourceDataFrameIndex)
-    ADXdataFrame = GetExponentialMovingAverage(calculateSourceDataFrame=DXdataFrame.dropna(), calculate_parameter=ADX_Parameter, calculateSourceColumnName=DXdataFrameColumnName, returnDataFrameColumnName=ADXcolumnName)
+    plusDIdataFrame = pd.DataFrame(np.array(plusDI), columns=[plusDIcolumnName])
+    minusDIdataFrame = pd.DataFrame(np.array(minusDI), columns=[minusDIcolumnName])
+    ADXdataFrame = GetExponentialMovingAverage(calculateSourceDataFrame=DXdataFrame, calculate_parameter=ADX_Parameter, calculateSourceColumnName=DXdataFrameColumnName, returnDataFrameColumnName=ADXcolumnName)
 
     return plusDIdataFrame, minusDIdataFrame, ADXdataFrame
 

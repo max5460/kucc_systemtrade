@@ -7,16 +7,16 @@ import sys
 from LogMessage import WarningMessage
 import pandas as pd
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     Logger.CreateLogger()
     logger = getLogger()
 
-    logger.debug('Start CreateCSV')
-    createCSVError = StockPriceCSV.ExportIndividualStockPrice()
-    if createCSVError is not None:
-        sys.exit(1)
-    logger.debug('End CreateCSV')
+    # logger.debug('Start CreateCSV')
+    # createCSVError = StockPriceCSV.ExportIndividualStockPrice()
+    # if createCSVError is not None:
+    #     sys.exit(1)
+    # logger.debug('End CreateCSV')
 
     logger.debug('Start StockPriceAnalize')
     df = StockPriceAnalysis.GetPredictSummary()

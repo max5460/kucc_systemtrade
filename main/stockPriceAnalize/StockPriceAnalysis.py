@@ -2,90 +2,148 @@ from CommonConstant import (
                             CSVFILE_STORE_FOLDER_NAME,
                             CSVFILE_EXTENSION,
                             TECHNICAL_INDEX_COLUMN_NAME_CLOSE,
+                            PREVIOUS_DAYS_CONSTANT,
+                            TOMORROW_PRICE_PREFIX,
                             TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST,
-                            PREVIOUS_COLUMN_PREFIX,
-                            DIFFERENCE_COLUMN_SUFFIX
+                            LSTM_INPUT_WINDOW_LENGTH
                            )
-import pandas as pd
-import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
 from CreateDataFrameForAnalysis import GetDataFrameForAnalysis
+from LogMessage import StockPriceAnalysisMessage
+import pandas as pd
+from keras import metrics
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers.recurrent import LSTM
+from sklearn.preprocessing import StandardScaler
 import glob
 import os
 from datetime import datetime
-from LogMessage import StockPriceAnalysisMessage
 from logging import getLogger
 logger = getLogger()
 
-PRICE_MOVEMENT_TYPE_UP = '上昇'
-PRICE_MOVEMENT_TYPE_DOWN = '下落'
+
+def __GetColumnsListForX():
+
+    returnColumnList = []
+    for technicalIndexColumnName in TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST:
+        for idx in range(LSTM_INPUT_WINDOW_LENGTH, 0 - 1, -1):
+            if idx == 0:
+                returnColumnList.append(technicalIndexColumnName)
+            else:
+                returnColumnList.append(str(idx) + PREVIOUS_DAYS_CONSTANT + technicalIndexColumnName)
+
+    return returnColumnList
 
 
-def __GetPredictDataFrameByBrand(sourceDataFrame, brand, returnDataFrameColumnList, current_time):
-    dataFrameForTraining = GetDataFrameForAnalysis(sourceDataFrame)
+def __GetReshapedNdArrayForX(ndArrayForX):
 
-    if dataFrameForTraining is None:
-        return None
+    shapeForLSTM = (ndArrayForX.shape[0], len(TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST), LSTM_INPUT_WINDOW_LENGTH + 1)
 
-    answer_label = []
-    for idx in range(len(dataFrameForTraining) - 1):
-        if dataFrameForTraining[TECHNICAL_INDEX_COLUMN_NAME_CLOSE][idx + 1] > dataFrameForTraining[TECHNICAL_INDEX_COLUMN_NAME_CLOSE][idx]:
-            answer_label.append(PRICE_MOVEMENT_TYPE_UP)
-        else:
-            answer_label.append(PRICE_MOVEMENT_TYPE_DOWN)
-
-    trainTargetColumnsList = []
-    for columnName in TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST:
-        trainTargetColumnsList.append(columnName)
-        trainTargetColumnsList.append(PREVIOUS_COLUMN_PREFIX + columnName)
-        trainTargetColumnsList.append(columnName + DIFFERENCE_COLUMN_SUFFIX)
-
-    for trainTargetColumnName in trainTargetColumnsList:
-        if trainTargetColumnName not in dataFrameForTraining.columns:
-            return None
-
-    X_train, X_test, y_train, y_test = train_test_split(dataFrameForTraining[trainTargetColumnsList].iloc[:-1], answer_label, train_size=0.8, test_size=0.2)
-
-    randomForestClassifier = RandomForestClassifier()
-    randomForestClassifier.fit(X_train, y_train)
-
-    y_predict = randomForestClassifier.predict(X_test)
-
-    BrandCodeAndName = brand.split(maxsplit=1)
-    brandCode = ''
-    brandName = ''
-
-    if len(BrandCodeAndName) == 2:
-        brandCode = BrandCodeAndName[0]
-        brandName = BrandCodeAndName[1]
-
-    return_predict = randomForestClassifier.predict(dataFrameForTraining[trainTargetColumnsList].iloc[-1].values.reshape(-1, len(trainTargetColumnsList)))
-    accuracy = accuracy_score(y_test, y_predict) * 100
-    trainingDataCount = len(dataFrameForTraining)
-
-    resultList = np.array([brandCode, brandName, return_predict[0], accuracy, trainingDataCount, current_time])
-    return pd.DataFrame(resultList.reshape(-1, len(returnDataFrameColumnList)), columns=returnDataFrameColumnList)
+    return ndArrayForX.reshape(shapeForLSTM)
 
 
-def GetPredictSummary():
+def __GetReshapedNdArrayForY(ndArrayForY, columnListForY):
 
-    predictSummaryDataFrame = pd.DataFrame(columns=['BRAND_CODE', 'BRAND_DESC', 'PREDICTION', 'ACCURACY', 'TRAINING_DATA_COUNT', 'PREDICT_DATE'])
-    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    shapeForLSTM = (ndArrayForY.shape[0], len(columnListForY))
+
+    return ndArrayForY.reshape(shapeForLSTM)
+
+
+def __CreateScalerAndTransform(transformedNdArray):
+
+    standardScaler = StandardScaler()
+    standardScaler.fit(transformedNdArray)
+
+    return standardScaler, standardScaler.transform(transformedNdArray)
+
+
+def __GetTrainAndTestData(X, Y, divideRate):
+
+    divideIndex = int(len(X) * divideRate)
+    X_train = X[:divideIndex, :, :]
+    X_test = X[divideIndex:, :, :]
+    Y_train = Y[:divideIndex, :]
+    Y_test = Y[divideIndex:, :]
+
+    return X_train, X_test, Y_train, Y_test
+
+
+def __CreateInformationForSummary():
+
+    columnListForX = __GetColumnsListForX()
+    columnListForY = [TOMORROW_PRICE_PREFIX + TECHNICAL_INDEX_COLUMN_NAME_CLOSE]
+
+    brandCodeList = []
+    brandNameList = []
+    trainingDataCountList = []
+    dataFrameForX = pd.DataFrame(None, columns=columnListForX)
+    dataFrameForY = pd.DataFrame(None, columns=columnListForY)
+    dataFrameForPredict = pd.DataFrame(None, columns=columnListForX)
 
     for csvFile in glob.glob(CSVFILE_STORE_FOLDER_NAME + '//*' + CSVFILE_EXTENSION):
         dataFrameFromCSV = pd.read_csv(csvFile, encoding='UTF-8', engine='python')
 
+        dataFrameForTraining = GetDataFrameForAnalysis(dataFrameFromCSV)
+        if dataFrameForTraining is None:
+            continue
+
+        dataFrameForX = dataFrameForX.append(dataFrameForTraining[columnListForX].iloc[:-1])
+        dataFrameForY = dataFrameForY.append(dataFrameForTraining[columnListForY].iloc[:-1])
+        dataFrameForPredict = dataFrameForPredict.append(dataFrameForTraining[columnListForX].iloc[-1])
+
         csvFileName = os.path.splitext(os.path.basename(csvFile))[0]
+        brandCodeAndName = csvFileName.split(maxsplit=1)
 
-        logger.debug(StockPriceAnalysisMessage.startAnalizeInformation % csvFileName)
-        resultDataFrameByBrand = __GetPredictDataFrameByBrand(dataFrameFromCSV, csvFileName, predictSummaryDataFrame.columns, current_time)
-        logger.debug(StockPriceAnalysisMessage.endAnalizeInformation % csvFileName)
+        if len(brandCodeAndName) == 2:
+            brandCodeList.append(brandCodeAndName[0])
+            brandNameList.append(brandCodeAndName[1])
+        else:
+            brandCodeList.append('')
+            brandNameList.append('')
 
-        predictSummaryDataFrame = predictSummaryDataFrame.append(resultDataFrameByBrand)
+        logger.debug(StockPriceAnalysisMessage.addTrainingDataInformation % csvFileName)
 
-    predictSummaryDataFrame = predictSummaryDataFrame.sort_values('ACCURACY', ascending=False)
-    predictSummaryDataFrame.reset_index(drop=True, inplace=True)
+        trainingDataCountList.append(len(dataFrameForX))
 
-    return predictSummaryDataFrame
+    X = __GetReshapedNdArrayForX(dataFrameForX.values)
+    standardScalerForY, scaledY = __CreateScalerAndTransform(dataFrameForY.values)
+    Y = __GetReshapedNdArrayForY(scaledY, columnListForY)
+    ndArrayForPredict = __GetReshapedNdArrayForX(dataFrameForPredict.values)
+
+    return X, Y, ndArrayForPredict, standardScalerForY, brandCodeList, brandNameList, trainingDataCountList
+
+
+def __GetPredictModel(inputBatchSize, inputVectorDimension):
+    predictModel = Sequential()
+    predictModel.add(LSTM(100, activation='tanh', input_shape=(inputBatchSize, inputVectorDimension), recurrent_activation='hard_sigmoid'))
+    predictModel.add(Dense(1))
+    predictModel.compile(loss='mean_squared_error', optimizer='rmsprop', metrics=[metrics.mae])
+
+    return predictModel
+
+
+def __CreatePredictModelAndFitting(X, Y):
+    X_train, X_test, Y_train, Y_test = __GetTrainAndTestData(X, Y, divideRate=0.8)
+
+    predictModel = __GetPredictModel(X.shape[0], X.shape[1])
+    predictModel.fit(X_train, Y_train, epochs=100, batch_size=1, verbose=2)
+
+    return predictModel
+
+
+def GetPredictSummary():
+
+    X, Y, ndArrayForPredict, standardScalerForY, brandCodeList, brandNameList, trainingDataCountList = __CreateInformationForSummary()
+    predictModel = __CreatePredictModelAndFitting(X, Y)
+
+    resultSummaryList = []
+
+    for idx in range(ndArrayForPredict.shape[0]):
+        predictResult = predictModel.predict(ndArrayForPredict[idx:idx + 1])
+        predictResult = standardScalerForY.inverse_transform(predictResult)
+
+        resultSummaryList.append([brandCodeList[idx], brandNameList[idx], predictResult[0][0], trainingDataCountList[idx], datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
+
+    resultSummaryColumnList = ['BRAND_CODE', 'BRAND_DESC', 'PREDICTION', 'TRAINING_DATA_COUNT', 'PREDICT_DATE']
+
+    return pd.DataFrame(resultSummaryList, columns=resultSummaryColumnList)
