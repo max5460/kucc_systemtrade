@@ -101,7 +101,7 @@ def __GetSeveralDaysTechnicalIndexDataFrame(sourceDataFrame, fundamentalColumnNa
     severalDaysDataFrame.sort_index(ascending=False, inplace=True)
 
     returnDataFrameColumn = [fundamentalColumnName]
-    for idx in range(1, LSTM_INPUT_WINDOW_LENGTH + 1):
+    for idx in range(1, LSTM_INPUT_WINDOW_LENGTH):
         previousCloseSeries = severalDaysDataFrame[fundamentalColumnName].shift(-1 * idx)
         addedColumnName = str(idx) + PREVIOUS_DAYS_CONSTANT + fundamentalColumnName
         severalDaysDataFrame[addedColumnName] = previousCloseSeries
@@ -160,7 +160,8 @@ def GetDataFrameForAnalysis(sourceDataFrame):
             return None
 
     technicalIndexDataFrame = pd.concat(technicalIndexDataFrameList, axis=1)
-    scaledDataFrame = __GetScaledDataFrame(technicalIndexDataFrame[TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST].dropna())
+    technicalIndexAndOHLCdataFrame = pd.concat([decimalizedOHLCdataFrame, technicalIndexDataFrame], axis=1)
+    scaledDataFrame = __GetScaledDataFrame(technicalIndexAndOHLCdataFrame[TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST].dropna())
 
     severalDaysTechnicalIndexDataFrame = pd.DataFrame(None)
     for severalDaysColumnTechnicalIndexColumnName in TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST:

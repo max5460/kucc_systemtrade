@@ -26,7 +26,7 @@ def __GetColumnsListForX():
 
     returnColumnList = []
     for technicalIndexColumnName in TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST:
-        for idx in range(LSTM_INPUT_WINDOW_LENGTH, 0 - 1, -1):
+        for idx in range(LSTM_INPUT_WINDOW_LENGTH - 1, 0 - 1, -1):
             if idx == 0:
                 returnColumnList.append(technicalIndexColumnName)
             else:
@@ -37,7 +37,7 @@ def __GetColumnsListForX():
 
 def __GetReshapedNdArrayForX(ndArrayForX):
 
-    shapeForLSTM = (ndArrayForX.shape[0], len(TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST), LSTM_INPUT_WINDOW_LENGTH + 1)
+    shapeForLSTM = (ndArrayForX.shape[0], LSTM_INPUT_WINDOW_LENGTH, len(TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST))
 
     return ndArrayForX.reshape(shapeForLSTM)
 
@@ -113,19 +113,14 @@ def __CreateInformationForSummary():
     return X, Y, ndArrayForPredict, standardScalerForY, brandCodeList, brandNameList, trainingDataCountList
 
 
-def __GetPredictModel(inputBatchSize, inputVectorDimension):
-    predictModel = Sequential()
-    predictModel.add(LSTM(100, activation='tanh', input_shape=(inputBatchSize, inputVectorDimension), recurrent_activation='hard_sigmoid'))
-    predictModel.add(Dense(1))
-    predictModel.compile(loss='mean_squared_error', optimizer='rmsprop', metrics=[metrics.mae])
-
-    return predictModel
-
-
 def __CreatePredictModelAndFitting(X, Y):
     X_train, X_test, Y_train, Y_test = __GetTrainAndTestData(X, Y, divideRate=0.8)
 
-    predictModel = __GetPredictModel(X.shape[0], X.shape[1])
+    predictModel = Sequential()
+    predictModel.add(LSTM(100, activation='tanh', input_shape=(X.shape[1], X.shape[2]), recurrent_activation='hard_sigmoid'))
+    predictModel.add(Dense(1))
+    predictModel.compile(loss='mean_squared_error', optimizer='rmsprop', metrics=[metrics.mae])
+
     predictModel.fit(X_train, Y_train, epochs=100, batch_size=1, verbose=2)
 
     return predictModel
