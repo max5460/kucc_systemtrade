@@ -6,7 +6,6 @@ from CommonConstant import (
                             TOMORROW_PRICE_PREFIX,
                             TRAINING_TECHNICAL_INDEX_COLUMN_NAME_LIST,
                             LSTM_INPUT_WINDOW_LENGTH,
-                            TRAINING_LEAST_DATA_COUNT,
                             PREDICT_MODEL_STORE_FOLDER_NAME
                            )
 from CreateDataFrameForAnalysis import GetDataFrameForAnalysis
@@ -97,7 +96,7 @@ def GetPredictSummary():
         dataFrameFromCSV = pd.read_csv(csvFile, encoding='UTF-8', engine='python')
 
         dataFrameForTraining = GetDataFrameForAnalysis(dataFrameFromCSV)
-        if dataFrameForTraining is None or len(dataFrameForTraining) < TRAINING_LEAST_DATA_COUNT:
+        if dataFrameForTraining is None:
             continue
 
         brandCode, brandName = __GetBrandCodeAndName(csvFile)
