@@ -25,7 +25,6 @@ if __name__ == "__main__":
         sys.exit(1)
     logger.debug('End StockPriceAnalize')
 
-    df = pd.DataFrame(None)
     logger.debug('Start DataBaseUpdate')
     res = ExecuteDb.update_db(df)
     if res is not None:
