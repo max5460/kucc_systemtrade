@@ -145,8 +145,13 @@ def GetDMIandADX(calculateSourceDataFrame, calculateSourceColumnName_TodayHigh, 
         plusDI_Ndarray = np.empty(len(_plusDM), dtype=Decimal)
         minusDI_Ndarray = np.empty(len(_minusDM), dtype=Decimal)
         for idx in range(calculateLength - _DI_Parameter + 1):
-            plusDI_Ndarray[_DI_Parameter - 1 + idx] = sum(_plusDM[idx:_DI_Parameter + idx]) / sum(_trueRange[idx:_DI_Parameter + idx]) * 100
-            minusDI_Ndarray[_DI_Parameter - 1 + idx] = sum(_minusDM[idx:_DI_Parameter + idx]) / sum(_trueRange[idx:_DI_Parameter + idx]) * 100
+            denominator = sum(_trueRange[idx:_DI_Parameter + idx])
+            if denominator != Decimal('0'):
+                plusDI_Ndarray[_DI_Parameter - 1 + idx] = sum(_plusDM[idx:_DI_Parameter + idx]) / denominator * 100
+                minusDI_Ndarray[_DI_Parameter - 1 + idx] = sum(_minusDM[idx:_DI_Parameter + idx]) / denominator * 100
+            else:
+                plusDI_Ndarray[_DI_Parameter - 1 + idx] = Decimal('0')
+                minusDI_Ndarray[_DI_Parameter - 1 + idx] = Decimal('0')
 
         return plusDI_Ndarray, minusDI_Ndarray
 
@@ -161,7 +166,11 @@ def GetDMIandADX(calculateSourceDataFrame, calculateSourceColumnName_TodayHigh, 
         DX_Ndarray = np.empty(calculateLength, dtype=Decimal)
 
         for idx in range(_DI_Parameter - 1, calculateLength):
-            DX_Ndarray[idx] = Decimal(str(fabs(_plusDI[idx] - _minusDI[idx]))) / (_plusDI[idx] + _minusDI[idx]) * 100
+            denominator = (_plusDI[idx] + _minusDI[idx])
+            if denominator != Decimal('0'):
+                DX_Ndarray[idx] = Decimal(str(fabs(_plusDI[idx] - _minusDI[idx]))) / denominator * 100
+            else:
+                DX_Ndarray[idx] = Decimal('0')
 
         return pd.DataFrame(DX_Ndarray, columns=[_DXdataFrameColumnName], index=returnDataFrameIndex)
 
