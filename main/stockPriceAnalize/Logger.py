@@ -27,7 +27,8 @@ def CreateLogger():
                                         'class': 'logging.handlers.RotatingFileHandler',
                                         'filename': logOutputFileName,
                                         'mode': 'a',
-                                        'formatter': standardFormatterName
+                                        'formatter': standardFormatterName,
+                                        'encoding': 'utf-8'
                                        }
                            },
                'loggers': {
