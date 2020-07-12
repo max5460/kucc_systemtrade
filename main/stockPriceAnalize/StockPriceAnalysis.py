@@ -100,7 +100,7 @@ def GetPredictSummary():
             continue
 
         brandCode, brandName = __GetBrandCodeAndName(csvFile)
-        logger.debug(StockPriceAnalysisMessage.addTrainingDataInformation % brandCode + brandName)
+        logger.debug(StockPriceAnalysisMessage.beginDataTraining % brandCode + brandName)
 
         X = __GetReshapedNdArrayForX(dataFrameForTraining[columnListForX].iloc[:-1].values)
         standardScalerForY, scaledY = __CreateScalerAndTransform(dataFrameForTraining[columnListForY].iloc[:-1].values)
@@ -112,6 +112,7 @@ def GetPredictSummary():
         predictResult = standardScalerForY.inverse_transform(predictResult)[0][0]
 
         resultSummaryList.append([brandCode, brandName, predictResult, X.shape[0], datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
+        logger.debug(StockPriceAnalysisMessage.finishDataTraining % brandCode + brandName)
 
     resultSummaryColumnList = ['BRAND_CODE', 'BRAND_DESC', 'PREDICTION', 'TRAINING_DATA_COUNT', 'PREDICT_DATE']
     return pd.DataFrame(resultSummaryList, columns=resultSummaryColumnList)
