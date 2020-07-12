@@ -113,12 +113,6 @@ def __GetSeveralDaysTechnicalIndexDataFrame(sourceDataFrame, fundamentalColumnNa
 
 
 def __GetScaledDataFrame(sourceDataFrame):
-    def __GetLogarithmicallyTransformedNdArray(transformedData):
-        missingValueDroppedNdarary = np.array(transformedData.astype('float64'))
-        logarithmicallyTransformedNdArray = np.log(missingValueDroppedNdarary + 1)
-
-        return np.nan_to_num(logarithmicallyTransformedNdArray).reshape(len(transformedData), 1)
-
     copiedDataFrame = sourceDataFrame.copy()
 
     copiedDataFrame.dropna(inplace=True)
@@ -128,9 +122,9 @@ def __GetScaledDataFrame(sourceDataFrame):
     returnNdArray = np.empty([returnDataFrameLength, returnDataFrameColumnsCount])
 
     for idx in range(returnDataFrameColumnsCount):
-        transformedNdArray = __GetLogarithmicallyTransformedNdArray(copiedDataFrame[copiedDataFrame.columns[idx]])
         standardScaler = StandardScaler()
-        returnNdArray[0:returnDataFrameLength, idx:idx + 1] = standardScaler.fit_transform(transformedNdArray)
+        floatNdArray = np.array(copiedDataFrame[copiedDataFrame.columns[idx]].astype('float64')).reshape(returnDataFrameLength, 1)
+        returnNdArray[0:returnDataFrameLength, idx:idx + 1] = standardScaler.fit_transform(floatNdArray)
 
     returnDataFrameIndex = copiedDataFrame.index
     return pd.DataFrame(returnNdArray, columns=sourceDataFrame.columns, index=returnDataFrameIndex)
